@@ -24,6 +24,7 @@ import org.hyperledger.besu.ethereum.bonsai.cache.CachedMerkleTrieLoader;
 import org.hyperledger.besu.ethereum.bonsai.cache.CachedWorldStorageManager;
 import org.hyperledger.besu.ethereum.bonsai.storage.BonsaiWorldStateKeyValueStorage;
 import org.hyperledger.besu.ethereum.bonsai.trielog.TrieLogManager;
+import org.hyperledger.besu.ethereum.bonsai.trielog.TrieLogPruner;
 import org.hyperledger.besu.ethereum.bonsai.worldview.BonsaiWorldState;
 import org.hyperledger.besu.ethereum.bonsai.worldview.BonsaiWorldStateUpdateAccumulator;
 import org.hyperledger.besu.ethereum.chain.Blockchain;
@@ -36,6 +37,7 @@ import org.hyperledger.besu.ethereum.trie.MerkleTrieException;
 import org.hyperledger.besu.ethereum.trie.patricia.StoredMerklePatriciaTrie;
 import org.hyperledger.besu.ethereum.worldstate.StateTrieAccountValue;
 import org.hyperledger.besu.ethereum.worldstate.WorldStateArchive;
+import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.worldstate.WorldState;
 import org.hyperledger.besu.metrics.ObservableMetricsSystem;
 import org.hyperledger.besu.plugin.BesuContext;
@@ -72,18 +74,24 @@ public class BonsaiWorldStateProvider implements WorldStateArchive {
       final Optional<Long> maxLayersToLoad,
       final CachedMerkleTrieLoader cachedMerkleTrieLoader,
       final ObservableMetricsSystem metricsSystem,
-      final BesuContext pluginContext) {
+      final BesuContext pluginContext,
+      final EvmConfiguration evmConfiguration,
+      final TrieLogPruner trieLogPruner) {
 
     this.cachedWorldStorageManager =
         new CachedWorldStorageManager(this, worldStateStorage, metricsSystem);
     // TODO: de-dup constructors
     this.trieLogManager =
         new TrieLogManager(
-            blockchain, worldStateStorage, maxLayersToLoad.orElse(RETAINED_LAYERS), pluginContext);
+            blockchain,
+            worldStateStorage,
+            maxLayersToLoad.orElse(RETAINED_LAYERS),
+            pluginContext,
+            trieLogPruner);
     this.blockchain = blockchain;
     this.worldStateStorage = worldStateStorage;
     this.cachedMerkleTrieLoader = cachedMerkleTrieLoader;
-    this.persistedState = new BonsaiWorldState(this, worldStateStorage);
+    this.persistedState = new BonsaiWorldState(this, worldStateStorage, evmConfiguration);
     blockchain
         .getBlockHeader(persistedState.getWorldStateBlockHash())
         .ifPresent(
@@ -98,12 +106,13 @@ public class BonsaiWorldStateProvider implements WorldStateArchive {
       final TrieLogManager trieLogManager,
       final BonsaiWorldStateKeyValueStorage worldStateStorage,
       final Blockchain blockchain,
-      final CachedMerkleTrieLoader cachedMerkleTrieLoader) {
+      final CachedMerkleTrieLoader cachedMerkleTrieLoader,
+      final EvmConfiguration evmConfiguration) {
     this.cachedWorldStorageManager = cachedWorldStorageManager;
     this.trieLogManager = trieLogManager;
     this.blockchain = blockchain;
     this.worldStateStorage = worldStateStorage;
-    this.persistedState = new BonsaiWorldState(this, worldStateStorage);
+    this.persistedState = new BonsaiWorldState(this, worldStateStorage, evmConfiguration);
     this.cachedMerkleTrieLoader = cachedMerkleTrieLoader;
     blockchain
         .getBlockHeader(persistedState.getWorldStateBlockHash())
